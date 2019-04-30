@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-
 	"github.com/grailbio/go-dicom"
 	"github.com/grailbio/go-dicom/dicomio"
 	"github.com/grailbio/go-dicom/dicomlog"
@@ -193,6 +192,7 @@ func (su *ServiceUser) CEcho() error {
 	if err != nil {
 		return err
 	}
+
 	defer su.disp.deleteCommand(cs)
 	cs.sendMessage(
 		&dimse.CEchoRq{MessageID: cs.messageID,
@@ -209,6 +209,54 @@ func (su *ServiceUser) CEcho() error {
 	if resp.Status.Status != dimse.StatusSuccess {
 		err = fmt.Errorf("Non-OK status in C-ECHO response: %+v", resp.Status)
 	}
+	return err
+}
+
+
+
+func (su *ServiceUser) CMove(aetDestination string,element []*dicom.Element) error {
+	err := su.waitUntilReady()
+	if err != nil {
+		return err
+	}
+	context, err := su.cm.lookupByAbstractSyntaxUID(dicomuid.StudyRootQRMove)
+	if err != nil {
+		return err
+	}
+	cs, err := su.disp.newCommand(su.cm, context)
+	if err != nil {
+		return err
+	}
+	defer su.disp.deleteCommand(cs)
+
+
+	dataEncoder := dicomio.NewBytesEncoderWithTransferSyntax(context.transferSyntaxUID)
+	for _, elem := range element {
+		dicom.WriteElement(dataEncoder, elem)
+	}
+
+	cs.sendMessage(&dimse.CMoveRq{AffectedSOPClassUID:"1.2.840.10008.5.1.4.1.2.2.2",Priority:0,MessageID:cs.messageID,MoveDestination:aetDestination}, dataEncoder.Bytes())
+	for {
+			event, ok := <-cs.upcallCh
+
+			if !ok {
+				return fmt.Errorf("Failed to receive C-Move response")
+			}
+			resp, ok := event.command.(*dimse.CMoveRsp)
+			if !ok {
+				return fmt.Errorf("Invalid response for C-Move: %v", event.command)
+			}
+			if resp.Status.Status != dimse.StatusPending  {
+				if resp.Status.Status != 0 {
+					// TODO: report error if status!= 0
+					dicomlog.Vprintf(0, "C-FIND response code %v", resp.Status.Status)
+
+				}
+				break
+			}
+
+	}
+
 	return err
 }
 
@@ -394,10 +442,12 @@ func (su *ServiceUser) CFind(qrLevel QRLevel, filter []*dicom.Element) chan CFin
 			} else {
 				ch <- CFindResult{Elements: elems}
 			}
-			if resp.Status.Status != dimse.StatusPending {
-				if resp.Status.Status != 0 {
+			if resp.Status.Status != dimse.StatusPending && resp.Status.Status != dimse.StatusPendingOptKeyNotSupperted  {
+				if resp.Status.Status != 0  {
 					// TODO: report error if status!= 0
+					dicomlog.Vprintf(0, "C-FIND response code %v", resp.Status.Status)
 					panic(resp)
+
 				}
 				break
 			}

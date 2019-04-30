@@ -13,6 +13,7 @@ type contextManagerEntry struct {
 	contextID         byte
 	abstractSyntaxUID string
 	transferSyntaxUID string
+	remoteAet		  string
 	result            pdu.PresentationContextResult // was this mapping accepted by the server?
 }
 
@@ -162,7 +163,9 @@ func (m *contextManager) onAssociateRequest(requestItems []pdu.SubItem) ([]pdu.S
 	}
 	responses = append(responses,
 		&pdu.UserInformationItem{
-			Items: []pdu.SubItem{&pdu.UserInformationMaximumLengthItem{MaximumLengthReceived: uint32(DefaultMaxPDUSize)}}})
+			Items: []pdu.SubItem{&pdu.UserInformationMaximumLengthItem{MaximumLengthReceived: uint32(DefaultMaxPDUSize)},
+			&pdu.ImplementationClassUIDSubItem{dicom.GoDICOMImplementationClassUID},
+			&pdu.ImplementationVersionNameSubItem{dicom.GoDICOMImplementationVersionName}}})
 	dicomlog.Vprintf(1, "dicom.onAssociateRequest(%s): Received associate request, #contexts:%v, maxPDU:%v, implclass:%v, version:%v",
 		m.label, len(m.contextIDToAbstractSyntaxNameMap),
 		m.peerMaxPDUSize, m.peerImplementationClassUID, m.peerImplementationVersionName)
@@ -211,7 +214,7 @@ func (m *contextManager) onAssociateResponse(responses []pdu.SubItem) error {
 				return fmt.Errorf("dicom.onAssociateResponse(%s): The A-ASSOCIATE request lacks the abstract syntax item for tag %v (this shouldn't happen)", m.label, ri.ContextID)
 			}
 			if ri.Result != pdu.PresentationContextAccepted {
-				dicomlog.Vprintf(0, "dicom.onAssociateResponse(%s): Abstract syntax %v, transfer syntax %v was rejected by the server: %s", m.label, dicomuid.UIDString(sopUID), dicomuid.UIDString(pickedTransferSyntaxUID), ri.Result.String())
+				dicomlog.Vprintf(1, "dicom.onAssociateResponse(%s): Abstract syntax %v, transfer syntax %v was rejected by the server: %s", m.label, dicomuid.UIDString(sopUID), dicomuid.UIDString(pickedTransferSyntaxUID), ri.Result.String())
 			}
 			if !found {
 				// Generally, we expect the server to pick a
@@ -270,6 +273,7 @@ func addContextMapping(
 		transferSyntaxUID: transferSyntaxUID,
 		contextID:         contextID,
 		result:            result,
+		remoteAet:pdu.RemoveAeTitle,
 	}
 	m.contextIDToAbstractSyntaxNameMap[contextID] = e
 	m.abstractSyntaxNameToContextIDMap[abstractSyntaxUID] = e

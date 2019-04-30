@@ -4,7 +4,6 @@ package netdicom
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net"
 
 	dicom "github.com/grailbio/go-dicom"
@@ -31,6 +30,7 @@ func handleCStore(
 	if cb != nil {
 		status = cb(
 			connState,
+			cs.context.remoteAet,
 			cs.context.transferSyntaxUID,
 			c.AffectedSOPClassUID,
 			c.AffectedSOPInstanceUID,
@@ -60,6 +60,7 @@ func handleCFind(
 		}, nil)
 		return
 	}
+
 	elems, err := readElementsInBytes(data, cs.context.transferSyntaxUID)
 	if err != nil {
 		cs.sendMessage(&dimse.CFindRsp{
@@ -71,6 +72,7 @@ func handleCFind(
 		return
 	}
 	dicomlog.Vprintf(1, "dicom.serviceProvider: C-FIND-RQ payload: %s", elementsString(elems))
+	dicomlog.Vprintf(1, "dicom.serviceProvider: C-FIND-RQ transferSyntax: %s", cs.context.transferSyntaxUID)
 
 	status := dimse.Status{Status: dimse.StatusSuccess}
 	responseCh := make(chan CFindResult, 128)
@@ -86,7 +88,9 @@ func handleCFind(
 			break
 		}
 		dicomlog.Vprintf(1, "dicom.serviceProvider: C-FIND-RSP: %s", elementsString(resp.Elements))
+		dicomlog.Vprintf(1, "dicom.serviceProvider: C-FIND-RSP transferSyntax: %s", cs.context.transferSyntaxUID)
 		payload, err := writeElementsToBytes(resp.Elements, cs.context.transferSyntaxUID)
+//		payload, err := writeElementsToBytes(resp.Elements, "1.2.840.10008.1.2.2")
 		if err != nil {
 			dicomlog.Vprintf(0, "dicom.serviceProvider: C-FIND: encode error %v", err)
 			status = dimse.Status{
@@ -134,11 +138,11 @@ func handleCMove(
 		}, nil)
 		return
 	}
-	remoteHostPort, ok := params.RemoteAEs[c.MoveDestination]
-	if !ok {
+	remoteHostPort, _ := params.RemoteAEs[c.MoveDestination]
+/*	if !ok {
 		sendError(fmt.Errorf("C-MOVE destination '%v' not registered in the server", c.MoveDestination))
 		return
-	}
+	}*/
 	elems, err := readElementsInBytes(data, cs.context.transferSyntaxUID)
 	if err != nil {
 		sendError(err)
@@ -147,8 +151,11 @@ func handleCMove(
 	dicomlog.Vprintf(1, "dicom.serviceProvider: C-MOVE-RQ payload: %s", elementsString(elems))
 	responseCh := make(chan CMoveResult, 128)
 	go func() {
-		params.CMove(connState, cs.context.transferSyntaxUID, c.AffectedSOPClassUID, elems, responseCh)
+		params.CMove(connState, cs.context.transferSyntaxUID, c.AffectedSOPClassUID, elems, responseCh,c.MoveDestination)
 	}()
+/*	go func() {
+		params.CMove(connState, cs.context.transferSyntaxUID, c.AffectedSOPClassUID, elems)
+	}()*/
 	// responseCh :=
 	status := dimse.Status{Status: dimse.StatusSuccess}
 	var numSuccesses, numFailures uint16
@@ -219,7 +226,7 @@ func handleCGet(
 	dicomlog.Vprintf(1, "dicom.serviceProvider: C-GET-RQ payload: %s", elementsString(elems))
 	responseCh := make(chan CMoveResult, 128)
 	go func() {
-		params.CGet(connState, cs.context.transferSyntaxUID, c.AffectedSOPClassUID, elems, responseCh)
+		params.CGet(connState, cs.context.transferSyntaxUID, c.AffectedSOPClassUID, elems, responseCh,"none")
 	}()
 	status := dimse.Status{Status: dimse.StatusSuccess}
 	var numSuccesses, numFailures uint16
@@ -344,12 +351,13 @@ const DefaultMaxPDUSize = 4 << 20
 // or one of CStoreStatus* error codes on errors.
 type CStoreCallback func(
 	conn ConnectionState,
+	aet string,
 	transferSyntaxUID string,
 	sopClassUID string,
 	sopInstanceUID string,
 	data []byte) dimse.Status
 
-// CFindCallback implements a C-FIND handler.  sopClassUID is the data type
+// CFindCallback implements a C-FIND handler.  sopClaCStoreCallbackssUID is the data type
 // requested (e.g.,"1.2.840.10008.5.1.4.1.1.1.2"), and transferSyntaxUID is the
 // data encoding requested (e.g., "1.2.840.10008.1.2.1").  These args are
 // extracted from the request packet.
@@ -380,7 +388,8 @@ type CMoveCallback func(
 	transferSyntaxUID string,
 	sopClassUID string,
 	filters []*dicom.Element,
-	ch chan CMoveResult)
+	ch chan CMoveResult,
+	Aet string)
 
 // ConnectionState informs session state to callbacks.
 type ConnectionState struct {

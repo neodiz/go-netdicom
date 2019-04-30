@@ -348,6 +348,7 @@ type PresentationContextItem struct {
 	// 1 byte reserved
 	Items []SubItem // List of {Abstract,Transfer}SyntaxSubItem
 }
+var RemoveAeTitle string
 
 func decodePresentationContextItem(d *dicomio.Decoder, itemType byte, length uint16) *PresentationContextItem {
 	v := &PresentationContextItem{Type: itemType}
@@ -594,6 +595,7 @@ func decodeAAssociate(d *dicomio.Decoder, pduType Type) *AAssociate {
 	d.Skip(2) // Reserved
 	pdu.CalledAETitle = d.ReadString(16)
 	pdu.CallingAETitle = d.ReadString(16)
+	RemoveAeTitle = pdu.CallingAETitle
 	d.Skip(8 * 4)
 	for !d.EOF() {
 		item := decodeSubItem(d)

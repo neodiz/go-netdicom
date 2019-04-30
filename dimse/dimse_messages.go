@@ -403,7 +403,6 @@ type CMoveRsp struct {
 	Status                         Status
 	Extra                          []*dicom.Element // Unparsed elements
 }
-
 func (v *CMoveRsp) Encode(e *dicomio.Encoder) {
 	elems := []*dicom.Element{}
 	elems = append(elems, newElement(dicomtag.CommandField, uint16(32801)))

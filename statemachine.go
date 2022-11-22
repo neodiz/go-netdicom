@@ -13,8 +13,8 @@ import (
 	"github.com/apaladiychuk/go-dicom/dicomio"
 	"github.com/apaladiychuk/go-dicom/dicomlog"
 	"github.com/apaladiychuk/go-dicom/dicomuid"
-	"github.com/apaladiychuk/go-netdicom/dimse"
-	"github.com/apaladiychuk/go-netdicom/pdu"
+	"github.com/neodiz/go-netdicom/dimse"
+	"github.com/neodiz/go-netdicom/pdu"
 )
 
 type stateType int

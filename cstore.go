@@ -8,7 +8,7 @@ import (
 	"github.com/apaladiychuk/go-dicom/dicomlog"
 	"github.com/apaladiychuk/go-dicom/dicomtag"
 	"github.com/apaladiychuk/go-dicom/dicomuid"
-	"github.com/apaladiychuk/go-netdicom/dimse"
+	"github.com/neodiz/go-netdicom/dimse"
 )
 
 // Helper function used by C-{STORE,GET,MOVE} to send a dataset using C-STORE

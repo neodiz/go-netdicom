@@ -1,4 +1,4 @@
-module github.com/apaladiychuk/go-netdicom
+module github.com/neodiz/go-netdicom
 
 require (
 	github.com/apaladiychuk/go-dicom v0.0.3

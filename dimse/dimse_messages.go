@@ -20,8 +20,35 @@ type CStoreRq struct {
 	MoveOriginatorMessageID              MessageID
 	Extra                                []*dicom.Element // Unparsed elements
 }
+type CStoreIANRq struct {
+	AffectedSOPClassUID                  string
+	MessageID                            MessageID
+	Priority                             uint16
+	CommandDataSetType                   uint16
+	AffectedSOPInstanceUID               string
+	MoveOriginatorApplicationEntityTitle string
+	MoveOriginatorMessageID              MessageID
+	Extra                                []*dicom.Element // Unparsed elements
+}
 
 func (v *CStoreRq) Encode(e *dicomio.Encoder) {
+	elems := []*dicom.Element{}
+	elems = append(elems, newElement(dicomtag.CommandField, uint16(1)))
+	elems = append(elems, newElement(dicomtag.AffectedSOPClassUID, v.AffectedSOPClassUID))
+	elems = append(elems, newElement(dicomtag.MessageID, v.MessageID))
+	elems = append(elems, newElement(dicomtag.Priority, v.Priority))
+	elems = append(elems, newElement(dicomtag.CommandDataSetType, v.CommandDataSetType))
+	elems = append(elems, newElement(dicomtag.AffectedSOPInstanceUID, v.AffectedSOPInstanceUID))
+	if v.MoveOriginatorApplicationEntityTitle != "" {
+		elems = append(elems, newElement(dicomtag.MoveOriginatorApplicationEntityTitle, v.MoveOriginatorApplicationEntityTitle))
+	}
+	if v.MoveOriginatorMessageID != 0 {
+		elems = append(elems, newElement(dicomtag.MoveOriginatorMessageID, v.MoveOriginatorMessageID))
+	}
+	elems = append(elems, v.Extra...)
+	encodeElements(e, elems)
+}
+func (v *CStoreIANRq) Encode(e *dicomio.Encoder) {
 	elems := []*dicom.Element{}
 	elems = append(elems, newElement(dicomtag.CommandField, uint16(1)))
 	elems = append(elems, newElement(dicomtag.AffectedSOPClassUID, v.AffectedSOPClassUID))
@@ -42,20 +69,35 @@ func (v *CStoreRq) Encode(e *dicomio.Encoder) {
 func (v *CStoreRq) HasData() bool {
 	return v.CommandDataSetType != CommandDataSetTypeNull
 }
+func (v *CStoreIANRq) HasData() bool {
+	return v.CommandDataSetType != CommandDataSetTypeNull
+}
 
 func (v *CStoreRq) CommandField() int {
 	return 1
 }
+func (v *CStoreIANRq) CommandField() int {
+	return 4
+}
 
 func (v *CStoreRq) GetMessageID() MessageID {
+	return v.MessageID
+}
+func (v *CStoreIANRq) GetMessageID() MessageID {
 	return v.MessageID
 }
 
 func (v *CStoreRq) GetStatus() *Status {
 	return nil
 }
+func (v *CStoreIANRq) GetStatus() *Status {
+	return nil
+}
 
 func (v *CStoreRq) String() string {
+	return fmt.Sprintf("CStoreRq{AffectedSOPClassUID:%v MessageID:%v Priority:%v CommandDataSetType:%v AffectedSOPInstanceUID:%v MoveOriginatorApplicationEntityTitle:%v MoveOriginatorMessageID:%v}}", v.AffectedSOPClassUID, v.MessageID, v.Priority, v.CommandDataSetType, v.AffectedSOPInstanceUID, v.MoveOriginatorApplicationEntityTitle, v.MoveOriginatorMessageID)
+}
+func (v *CStoreIANRq) String() string {
 	return fmt.Sprintf("CStoreRq{AffectedSOPClassUID:%v MessageID:%v Priority:%v CommandDataSetType:%v AffectedSOPInstanceUID:%v MoveOriginatorApplicationEntityTitle:%v MoveOriginatorMessageID:%v}}", v.AffectedSOPClassUID, v.MessageID, v.Priority, v.CommandDataSetType, v.AffectedSOPInstanceUID, v.MoveOriginatorApplicationEntityTitle, v.MoveOriginatorMessageID)
 }
 
@@ -71,8 +113,27 @@ func decodeCStoreRq(d *messageDecoder) *CStoreRq {
 	v.Extra = d.unparsedElements()
 	return v
 }
+func decodeCStoreIANRq(d *messageDecoder) *CStoreIANRq {
+	v := &CStoreIANRq{}
+	v.AffectedSOPClassUID = d.getString(dicomtag.AffectedSOPClassUID, requiredElement)
+	v.MessageID = d.getUInt16(dicomtag.MessageID, requiredElement)
+	v.CommandDataSetType = d.getUInt16(dicomtag.CommandDataSetType, requiredElement)
+	v.AffectedSOPInstanceUID = d.getString(dicomtag.AffectedSOPInstanceUID, requiredElement)
+	v.MoveOriginatorApplicationEntityTitle = d.getString(dicomtag.MoveOriginatorApplicationEntityTitle, optionalElement)
+	v.MoveOriginatorMessageID = d.getUInt16(dicomtag.MoveOriginatorMessageID, optionalElement)
+	v.Extra = d.unparsedElements()
+	return v
+}
 
 type CStoreRsp struct {
+	AffectedSOPClassUID       string
+	MessageIDBeingRespondedTo MessageID
+	CommandDataSetType        uint16
+	AffectedSOPInstanceUID    string
+	Status                    Status
+	Extra                     []*dicom.Element // Unparsed elements
+}
+type CStoreIANRsp struct {
 	AffectedSOPClassUID       string
 	MessageIDBeingRespondedTo MessageID
 	CommandDataSetType        uint16
@@ -92,24 +153,50 @@ func (v *CStoreRsp) Encode(e *dicomio.Encoder) {
 	elems = append(elems, v.Extra...)
 	encodeElements(e, elems)
 }
+func (v *CStoreIANRsp) Encode(e *dicomio.Encoder) {
+	elems := []*dicom.Element{}
+	elems = append(elems, newElement(dicomtag.CommandField, uint16(32769)))
+	elems = append(elems, newElement(dicomtag.AffectedSOPClassUID, v.AffectedSOPClassUID))
+	elems = append(elems, newElement(dicomtag.MessageIDBeingRespondedTo, v.MessageIDBeingRespondedTo))
+	elems = append(elems, newElement(dicomtag.CommandDataSetType, v.CommandDataSetType))
+	elems = append(elems, newElement(dicomtag.AffectedSOPInstanceUID, v.AffectedSOPInstanceUID))
+	elems = append(elems, newStatusElements(v.Status)...)
+	elems = append(elems, v.Extra...)
+	encodeElements(e, elems)
+}
 
 func (v *CStoreRsp) HasData() bool {
+	return v.CommandDataSetType != CommandDataSetTypeNull
+}
+func (v *CStoreIANRsp) HasData() bool {
 	return v.CommandDataSetType != CommandDataSetTypeNull
 }
 
 func (v *CStoreRsp) CommandField() int {
 	return 32769
 }
+func (v *CStoreIANRsp) CommandField() int {
+	return 32769
+}
 
 func (v *CStoreRsp) GetMessageID() MessageID {
+	return v.MessageIDBeingRespondedTo
+}
+func (v *CStoreIANRsp) GetMessageID() MessageID {
 	return v.MessageIDBeingRespondedTo
 }
 
 func (v *CStoreRsp) GetStatus() *Status {
 	return &v.Status
 }
+func (v *CStoreIANRsp) GetStatus() *Status {
+	return &v.Status
+}
 
 func (v *CStoreRsp) String() string {
+	return fmt.Sprintf("CStoreRsp{AffectedSOPClassUID:%v MessageIDBeingRespondedTo:%v CommandDataSetType:%v AffectedSOPInstanceUID:%v Status:%v}}", v.AffectedSOPClassUID, v.MessageIDBeingRespondedTo, v.CommandDataSetType, v.AffectedSOPInstanceUID, v.Status)
+}
+func (v *CStoreIANRsp) String() string {
 	return fmt.Sprintf("CStoreRsp{AffectedSOPClassUID:%v MessageIDBeingRespondedTo:%v CommandDataSetType:%v AffectedSOPInstanceUID:%v Status:%v}}", v.AffectedSOPClassUID, v.MessageIDBeingRespondedTo, v.CommandDataSetType, v.AffectedSOPInstanceUID, v.Status)
 }
 
@@ -560,6 +647,8 @@ const CommandFieldCMoveRq = 33
 const CommandFieldCMoveRsp = 32801
 const CommandFieldCEchoRq = 48
 const CommandFieldCEchoRsp = 32816
+const CommandFieldCStoreIANRq = 4
+const CommandFieldCStoreIANRsp = 32769
 
 func decodeMessageForType(d *messageDecoder, commandField uint16) Message {
 	switch commandField {
@@ -583,6 +672,8 @@ func decodeMessageForType(d *messageDecoder, commandField uint16) Message {
 		return decodeCEchoRq(d)
 	case 0x8030:
 		return decodeCEchoRsp(d)
+	case 0x140:
+		return decodeCStoreIANRq(d)
 	default:
 		d.setError(fmt.Errorf("Unknown DIMSE command 0x%x", commandField))
 		return nil

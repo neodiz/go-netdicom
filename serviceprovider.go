@@ -46,6 +46,30 @@ func handleCStore(
 	cs.sendMessage(resp, nil)
 }
 
+func handleCStoreIAN(
+	cb CStoreIANCallback,
+	connState ConnectionState,
+	c *dimse.CStoreIANRq, data []byte,
+	cs *serviceCommandState) {
+	status := dimse.Status{Status: dimse.StatusUnrecognizedOperation}
+	if cb != nil {
+		status = cb(
+			connState,
+			cs.context.transferSyntaxUID,
+			c.AffectedSOPClassUID,
+			c.AffectedSOPInstanceUID,
+			data)
+	}
+	resp := &dimse.CStoreIANRsp{
+		AffectedSOPClassUID:       c.AffectedSOPClassUID,
+		MessageIDBeingRespondedTo: c.MessageID,
+		CommandDataSetType:        dimse.CommandDataSetTypeNull,
+		AffectedSOPInstanceUID:    c.AffectedSOPInstanceUID,
+		Status:                    status,
+	}
+	cs.sendMessage(resp, nil)
+}
+
 func handleCFind(
 	params ServiceProviderParams,
 	connState ConnectionState,
@@ -317,6 +341,7 @@ type ServiceProviderParams struct {
 
 	// If CStoreCallback=nil, a C-STORE call will produce an error response.
 	CStore CStoreCallback
+	CStoreIAN CStoreIANCallback
 
 	// TLSConfig, if non-nil, enables TLS on the connection. See
 	// https://gist.github.com/michaljemala/d6f4e01c4834bf47a9c4 for an
@@ -326,6 +351,28 @@ type ServiceProviderParams struct {
 
 // DefaultMaxPDUSize is the the PDU size advertized by go-netdicom.
 const DefaultMaxPDUSize = 4 << 20
+
+// CStoreIANCallback is called C-STORE request.  sopInstanceUID is the UID of the
+// data.  sopClassUID is the data type requested
+// (e.g.,"1.2.840.10008.5.1.4.1.1.1.2"), and transferSyntaxUID is the encoding
+// of the data (e.g., "1.2.840.10008.1.2.1").  These args are extracted from the
+// request packet.
+//
+// "data" is the payload, i.e., a sequence of serialized dicom.DataElement
+// objects in transferSyntaxUID.  "data" does not contain metadata elements
+// (elements whose Tag.Group=2 -- e.g., TransferSyntaxUID and
+// MediaStorageSOPClassUID), since they are stripped by the requster (two key
+// metadata are passed as sop{Class,Instance)UID).
+//
+// The function should store encode the sop{Class,InstanceUID} as the DICOM
+// header, followed by data. It should return either dimse.Success0 on success,
+// or one of CStoreStatus* error codes on errors.
+type CStoreIANCallback func(
+	conn ConnectionState,
+	transferSyntaxUID string,
+	sopClassUID string,
+	sopInstanceUID string,
+	data []byte) dimse.Status
 
 // CStoreCallback is called C-STORE request.  sopInstanceUID is the UID of the
 // data.  sopClassUID is the data type requested
@@ -510,6 +557,10 @@ func RunProviderForConn(conn net.Conn, params ServiceProviderParams) {
 	disp.registerCallback(dimse.CommandFieldCEchoRq,
 		func(msg dimse.Message, data []byte, cs *serviceCommandState) {
 			handleCEcho(params, getConnState(conn), msg.(*dimse.CEchoRq), data, cs)
+		})
+	disp.registerCallback(dimse.CommandFieldCStoreIANRq,
+		func(msg dimse.Message, data []byte, cs *serviceCommandState) {
+			handleCStoreIAN(params.CStoreIAN, getConnState(conn), msg.(*dimse.CStoreIANRq), data, cs)
 		})
 	go runStateMachineForServiceProvider(conn, upcallCh, disp.downcallCh, label)
 	for event := range upcallCh {

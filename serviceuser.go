@@ -397,7 +397,7 @@ func (su *ServiceUser) CFind(qrLevel QRLevel, filter []*dicom.Element) chan CFin
 			if resp.Status.Status != dimse.StatusPending {
 				if resp.Status.Status != 0 {
 					// TODO: report error if status!= 0
-					panic(resp)
+//					panic(resp)
 				}
 				break
 			}

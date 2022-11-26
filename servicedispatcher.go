@@ -152,10 +152,13 @@ func (disp *serviceDispatcher) handleEvent(event upcallEvent) {
 		return
 	}
 	disp.mu.Lock()
+
 	cb := disp.callbacks[event.command.CommandField()]
 	disp.mu.Unlock()
 	go func() {
-		cb(event.command, event.data, dc)
+		if event.command.CommandField() != 32800 {
+			cb(event.command, event.data, dc)
+		}
 		disp.deleteCommand(dc)
 	}()
 }
